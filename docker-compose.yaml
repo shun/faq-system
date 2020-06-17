@@ -1,0 +1,80 @@
+version: "3.7"
+
+x-common:
+  - &LOCALUID 1000
+  - &LOCALGID 1000
+  - &DB_PASS "faq"
+  - &DB_USER "faq"
+  - &DB_NAME "faq_prod"
+
+services:
+  #  proxy:
+  #    image: nginx:stable
+  #    volumes:
+  #      - ./frontend/app:/usr/share/nginx/html
+  #    ports:
+  #      - "20080:80"
+  #
+  frontend:
+    image: kudoshunsuke/booking-system-frontend
+    build:
+      context: ./frontend
+      dockerfile: ./Dockerfile
+    environment:
+      LOCALUID: 1000
+      LOCALGID: 1000
+      NODE_PATH: /usr/local/lib/node_modules
+    volumes:
+      - ./frontend/entrypoint.sh:/entrypoint.sh:ro
+      - ./frontend/app:/app
+      - ./frontend/.bashrc:/home/node/.bashrc
+    entrypoint: "/entrypoint.sh"
+    command: "bash"
+    tty: true
+    ports:
+      - "18080:8080"
+
+  backend:
+    image: kudoshunsuke/faq-backend
+    build:
+      context: ./
+      dockerfile: ./backend/Dockerfile
+    environment:
+      LOCALUID: *LOCALUID
+      LOCALGID: *LOCALGID
+      MYSQL_DATABASE: *DB_NAME
+      MYSQL_USER: *DB_USER
+      MYSQL_PASSWORD: *DB_PASS
+    volumes:
+      - ./backend/entrypoint.sh:/entrypoint.sh:ro
+      - ./backend/app/src:/home/node/app/src
+      - ./backend/app/ormconfig.json:/home/node/app/ormconfig.json
+      - ./backend/app/tsconfig.json:/home/node/app/tsconfig.json
+      - ./backend/app/package.json:/home/node/app/package.json
+      - ./backend/.bashrc:/home/node/.bashrc
+    entrypoint: "/entrypoint.sh"
+    command: /usr/bin/supervisord -nc /etc/supervisor/supervisord.conf
+    ports:
+      - "4000:4000"
+
+  db:
+    image: mariadb:10
+    environment:
+      MYSQL_ROOT_PASSWORD: 'maria'
+      MYSQL_DATABASE: *DB_NAME
+      MYSQL_USER: *DB_USER
+      MYSQL_PASSWORD: *DB_PASS
+      MYSQL_ALLOW_EMPTY_PASSWORD: 0
+      MYSQL_INITDB_SKIP_TZINFO: 'yes'
+
+    command: "mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci"
+    volumes:
+      - mysql:/var/lib/mysql
+    restart: always
+    ports:
+      - "13306:3306"
+
+volumes:
+  mysql:
+    driver: "local"
+
